@@ -166,11 +166,11 @@ export default function Transactions() {
   };
 
   const filteredTransactions = useMemo(() => {
-    const finalFilters = { ...filters } as Omit<FilterParams, 'status'> & { type?: TransactionType; status?: TransactionStatus };
+    const finalFilters = { ...filters } as Record<string, unknown>;
     if (activeTab !== 'all') {
       finalFilters.type = activeTab as TransactionType;
     }
-    return filterTransactions(finalFilters);
+    return filterTransactions(finalFilters as Omit<FilterParams, 'status'> & { type?: TransactionType; status?: TransactionStatus });
   }, [transactions, filters, activeTab, filterTransactions]);
 
   const typeOptions = Object.entries(TransactionTypeLabels).map(([value, label]) => ({

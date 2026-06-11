@@ -93,6 +93,7 @@ export default function Assets() {
     targetStatus: AssetStatus | null;
   }>({ open: false, asset: null, targetStatus: null });
   const [activeTab, setActiveTab] = useState<'info' | 'history'>('info');
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   const filteredAssets = useMemo(() => {
     return filterAssets(filters);
@@ -161,9 +162,33 @@ export default function Assets() {
   };
 
   const handleSubmitAdd = () => {
-    if (!formData.name || formData.amount <= 0) {
+    setErrorMessage('');
+
+    if (!formData.name || formData.name.trim() === '') {
+      setErrorMessage('请输入资产名称');
       return;
     }
+    if (!formData.amount || formData.amount <= 0) {
+      setErrorMessage('请输入有效的数量');
+      return;
+    }
+    if (formData.unitPrice === undefined || formData.unitPrice === null || isNaN(formData.unitPrice)) {
+      setErrorMessage('请输入单价');
+      return;
+    }
+    if (formData.unitPrice < 0) {
+      setErrorMessage('单价不能为负数');
+      return;
+    }
+    if (!formData.department) {
+      setErrorMessage('请选择所属部门');
+      return;
+    }
+    if (!formData.acquiredDate) {
+      setErrorMessage('请选择获得日期');
+      return;
+    }
+
     const totalCost = Math.round(formData.amount * formData.unitPrice * 100) / 100;
     addAsset({
       type: formData.type,
@@ -183,6 +208,7 @@ export default function Assets() {
     });
     setAddModalOpen(false);
     setFormData(initialFormData);
+    setErrorMessage('');
   };
 
   const handleViewDetail = (asset: CarbonAsset) => {
@@ -373,7 +399,12 @@ export default function Assets() {
         width="max-w-2xl"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setAddModalOpen(false)}>
+            {errorMessage && (
+              <span className="text-sm text-red-600 dark:text-red-400 mr-auto">
+                {errorMessage}
+              </span>
+            )}
+            <Button variant="ghost" onClick={() => { setAddModalOpen(false); setErrorMessage(''); }}>
               取消
             </Button>
             <Button variant="primary" onClick={handleSubmitAdd}>

@@ -131,28 +131,24 @@ export function useReports(): UseReportsReturn {
     const inventoryItems: InventoryItem[] = [];
 
     for (const dept of depts) {
-      const deptAssets = assets.filter((a) => a.department === dept.id);
-      const deptTrans = transactions.filter((t) => t.department === dept.id);
+      const deptAllAssets = assets.filter((a) => a.department === dept.id);
+      const deptAllTrans = transactions.filter((t) => t.department === dept.id && t.status === 'completed');
 
-      const priorYearAssets = deptAssets.filter((a) => {
+      const deptAssetsBeforeYear = deptAllAssets.filter((a) => {
         const acquired = parseISO(a.acquiredDate);
         return acquired < yearStart;
       });
-      const priorYearAdd = priorYearAssets.reduce((sum, a) => sum + a.amount, 0);
 
-      const priorYearReduceTrans = deptTrans.filter((t) => {
-        if (t.type !== 'sell' && t.type !== 'performance') return false;
-        if (t.status !== 'completed') return false;
-        const transDate = parseISO(t.transactionDate);
-        return transDate < yearStart;
-      });
-      const priorYearReduce = priorYearReduceTrans.reduce((sum, t) => sum + t.amount, 0);
-
-      let cumulativeBalance = priorYearAdd - priorYearReduce;
-      if (cumulativeBalance < 0) cumulativeBalance = 0;
-
-      const currentYearAssets = filteredAssets.filter((a) => a.department === dept.id);
-      const currentYearTrans = filteredTransactions.filter((t) => t.department === dept.id);
+      const initialOpeningBalance = deptAssetsBeforeYear.reduce((sum, a) => {
+        const assetTrans = deptAllTrans.filter((t) => {
+          if (t.type !== 'sell' && t.type !== 'performance') return false;
+          if (t.assetId !== a.id) return false;
+          const transDate = parseISO(t.transactionDate);
+          return transDate < yearStart;
+        });
+        const usedBeforeYear = assetTrans.reduce((s, t) => s + t.amount, 0);
+        return sum + Math.max(0, a.amount - usedBeforeYear);
+      }, 0);
 
       for (const monthDate of months) {
         const monthStart = startOfMonth(monthDate);
@@ -160,28 +156,55 @@ export function useReports(): UseReportsReturn {
         const monthKey = format(monthDate, 'yyyy-MM');
         const monthLabel = format(monthDate, 'M月', { locale: zhCN });
 
-        const openingBalance = cumulativeBalance;
+        const isFirstMonth = monthDate.getMonth() === 0;
+        let openingBalance: number;
+        let cumulativeCost = 0;
 
-        const monthAddAssets = currentYearAssets.filter((a) => {
+        if (isFirstMonth) {
+          openingBalance = initialOpeningBalance;
+        } else {
+          const prevMonthKey = format(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1), 'yyyy-MM');
+          const prevItem = inventoryItems.find(
+            (item) => item.department === dept.id && item.month === prevMonthKey
+          );
+          openingBalance = prevItem ? prevItem.closingBalance : 0;
+        }
+
+        const monthAddAssets = deptAllAssets.filter((a) => {
           const acquired = parseISO(a.acquiredDate);
           return isWithinInterval(acquired, { start: monthStart, end: monthEnd });
         });
-        const currentAdd = monthAddAssets.reduce((sum, a) => sum + a.amount, 0);
 
-        const monthReduceTrans = currentYearTrans.filter((t) => {
+        const monthReduceTrans = deptAllTrans.filter((t) => {
           if (t.type !== 'sell' && t.type !== 'performance') return false;
-          if (t.status !== 'completed') return false;
           const transDate = parseISO(t.transactionDate);
           return isWithinInterval(transDate, { start: monthStart, end: monthEnd });
         });
-        const currentReduce = monthReduceTrans.reduce((sum, t) => sum + t.amount, 0);
 
-        const closingBalance = openingBalance + currentAdd - currentReduce;
-        const cost = monthAddAssets.reduce((sum, a) => sum + a.cost, 0);
-        const revenue = monthReduceTrans
+        const monthAdd = monthAddAssets.reduce((sum, a) => {
+          return sum + a.amount;
+        }, 0);
+
+        const monthReduce = monthReduceTrans.reduce((sum, t) => {
+          return sum + t.amount;
+        }, 0);
+
+        const closingBalance = Math.max(0, openingBalance + monthAdd - monthReduce);
+
+        const monthCost = monthAddAssets.reduce((sum, a) => {
+          const assetReduceThisMonth = monthReduceTrans
+            .filter((t) => t.assetId === a.id)
+            .reduce((s, t) => s + t.amount, 0);
+          const remainingRatio = a.amount > 0 ? (a.amount - assetReduceThisMonth) / a.amount : 0;
+          const addCost = a.cost * (remainingRatio > 0 ? 1 : 0);
+          return sum + addCost;
+        }, 0);
+
+        const monthRevenue = monthReduceTrans
           .filter((t) => t.type === 'sell')
           .reduce((sum, t) => sum + (t.totalAmount || 0), 0);
-        const profit = revenue - cost;
+
+        const monthProfit = monthRevenue - monthCost;
 
         inventoryItems.push({
           month: monthKey,
@@ -189,29 +212,45 @@ export function useReports(): UseReportsReturn {
           department: dept.id,
           departmentName: dept.name,
           openingBalance,
-          currentAdd,
-          currentReduce,
+          currentAdd: monthAdd,
+          currentReduce: monthReduce,
           closingBalance,
-          cost,
-          revenue,
-          profit,
+          cost: monthCost,
+          revenue: monthRevenue,
+          profit: monthProfit,
         });
-
-        cumulativeBalance = closingBalance;
       }
     }
 
     return inventoryItems;
-  }, [assets, transactions, filteredAssets, filteredTransactions, departments, filters.department, filters.year]);
+  }, [assets, transactions, departments, filters.department, filters.year]);
 
   const inventorySummary = useMemo(() => {
-    const totalOpening = inventoryData.reduce((sum, item) => sum + item.openingBalance, 0);
-    const totalAdd = inventoryData.reduce((sum, item) => sum + item.currentAdd, 0);
-    const totalReduce = inventoryData.reduce((sum, item) => sum + item.currentReduce, 0);
-    const totalClosing = inventoryData.reduce((sum, item) => sum + item.closingBalance, 0);
-    const totalCost = inventoryData.reduce((sum, item) => sum + item.cost, 0);
-    const totalRevenue = inventoryData.reduce((sum, item) => sum + item.revenue, 0);
-    const totalProfit = inventoryData.reduce((sum, item) => sum + item.profit, 0);
+    const deptSet = new Set(inventoryData.map((item) => item.department));
+    let totalOpening = 0;
+    let totalAdd = 0;
+    let totalReduce = 0;
+    let totalClosing = 0;
+    let totalCost = 0;
+    let totalRevenue = 0;
+    let totalProfit = 0;
+
+    for (const dept of deptSet) {
+      const deptItems = inventoryData.filter((item) => item.department === dept);
+      if (deptItems.length === 0) continue;
+
+      deptItems.sort((a, b) => a.month.localeCompare(b.month));
+
+      totalOpening += deptItems[0].openingBalance;
+
+      totalClosing += deptItems[deptItems.length - 1].closingBalance;
+
+      totalAdd += deptItems.reduce((s, i) => s + i.currentAdd, 0);
+      totalReduce += deptItems.reduce((s, i) => s + i.currentReduce, 0);
+      totalCost += deptItems.reduce((s, i) => s + i.cost, 0);
+      totalRevenue += deptItems.reduce((s, i) => s + i.revenue, 0);
+      totalProfit += deptItems.reduce((s, i) => s + i.profit, 0);
+    }
 
     return {
       totalOpening,

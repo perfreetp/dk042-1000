@@ -103,8 +103,36 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   initData: () => {
     ensureDataInitialized();
+    const rawAssets = getAssets();
+    const migratedAssets = rawAssets.map((a) => {
+      let unitPrice = a.unitPrice;
+      if (unitPrice === undefined || unitPrice === null || isNaN(unitPrice)) {
+        if (a.cost !== undefined && a.amount > 0) {
+          unitPrice = Math.round((a.cost / a.amount) * 100) / 100;
+        } else {
+          unitPrice = 0;
+        }
+      }
+      unitPrice = Math.max(0, unitPrice);
+      const amount = a.amount ?? 0;
+      const cost = Math.round(amount * unitPrice * 100) / 100;
+      return {
+        ...a,
+        unitPrice,
+        cost,
+      };
+    });
+
+    const hasChanges = rawAssets.some((a, i) => {
+      const m = migratedAssets[i];
+      return a.unitPrice !== m.unitPrice || a.cost !== m.cost;
+    });
+    if (hasChanges) {
+      setAssets(migratedAssets);
+    }
+
     set({
-      assets: getAssets(),
+      assets: migratedAssets,
       transactions: getTransactions(),
       projects: getProjects(),
       departments: getDepartments(),
@@ -114,8 +142,36 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   refreshAll: () => {
+    const rawAssets = getAssets();
+    const migratedAssets = rawAssets.map((a) => {
+      let unitPrice = a.unitPrice;
+      if (unitPrice === undefined || unitPrice === null || isNaN(unitPrice)) {
+        if (a.cost !== undefined && a.amount > 0) {
+          unitPrice = Math.round((a.cost / a.amount) * 100) / 100;
+        } else {
+          unitPrice = 0;
+        }
+      }
+      unitPrice = Math.max(0, unitPrice);
+      const amount = a.amount ?? 0;
+      const cost = Math.round(amount * unitPrice * 100) / 100;
+      return {
+        ...a,
+        unitPrice,
+        cost,
+      };
+    });
+
+    const hasChanges = rawAssets.some((a, i) => {
+      const m = migratedAssets[i];
+      return a.unitPrice !== m.unitPrice || a.cost !== m.cost;
+    });
+    if (hasChanges) {
+      setAssets(migratedAssets);
+    }
+
     set({
-      assets: getAssets(),
+      assets: migratedAssets,
       transactions: getTransactions(),
       projects: getProjects(),
       departments: getDepartments(),
