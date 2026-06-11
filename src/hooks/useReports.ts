@@ -20,6 +20,7 @@ export interface InventoryItem {
   currentAdd: number;
   currentReduce: number;
   closingBalance: number;
+  closingCost: number;
   cost: number;
   revenue: number;
   profit: number;
@@ -130,81 +131,139 @@ export function useReports(): UseReportsReturn {
 
     const inventoryItems: InventoryItem[] = [];
 
-    for (const dept of depts) {
-      const deptAllAssets = assets.filter((a) => a.department === dept.id);
-      const deptAllTrans = transactions.filter((t) => t.department === dept.id && t.status === 'completed');
+    const completedTrans = transactions.filter((t) => t.status === 'completed');
 
-      const deptAssetsBeforeYear = deptAllAssets.filter((a) => {
+    for (const dept of depts) {
+      const deptAssets = assets.filter((a) => a.department === dept.id);
+      const deptTrans = completedTrans.filter((t) => t.department === dept.id);
+
+      const buyTrans = deptTrans.filter((t) => t.type === 'buy');
+      const assetOriginalAmounts: Record<string, number> = {};
+      const assetOriginalCosts: Record<string, number> = {};
+      const assetUnitPrices: Record<string, number> = {};
+
+      for (const asset of deptAssets) {
+        const relatedBuy = buyTrans.find((t) => t.assetId === asset.id);
+        if (relatedBuy) {
+          assetOriginalAmounts[asset.id] = relatedBuy.amount;
+          assetOriginalCosts[asset.id] = relatedBuy.totalAmount || (relatedBuy.unitPrice || 0) * relatedBuy.amount;
+          assetUnitPrices[asset.id] = relatedBuy.unitPrice || 0;
+        } else {
+          assetOriginalAmounts[asset.id] = asset.amount;
+          assetOriginalCosts[asset.id] = asset.unitPrice * asset.amount;
+          assetUnitPrices[asset.id] = asset.unitPrice;
+        }
+      }
+
+      const deptAssetsBeforeYear = deptAssets.filter((a) => {
         const acquired = parseISO(a.acquiredDate);
         return acquired < yearStart;
       });
 
       const initialOpeningBalance = deptAssetsBeforeYear.reduce((sum, a) => {
-        const assetTrans = deptAllTrans.filter((t) => {
+        const originalAmount = assetOriginalAmounts[a.id] || a.amount;
+        const assetReduceTrans = deptTrans.filter((t) => {
           if (t.type !== 'sell' && t.type !== 'performance') return false;
           if (t.assetId !== a.id) return false;
           const transDate = parseISO(t.transactionDate);
           return transDate < yearStart;
         });
-        const usedBeforeYear = assetTrans.reduce((s, t) => s + t.amount, 0);
-        return sum + Math.max(0, a.amount - usedBeforeYear);
+        const usedBeforeYear = assetReduceTrans.reduce((s, t) => s + t.amount, 0);
+        return sum + Math.max(0, originalAmount - usedBeforeYear);
       }, 0);
 
-      for (const monthDate of months) {
+      const initialOpeningCost = deptAssetsBeforeYear.reduce((sum, a) => {
+        const originalAmount = assetOriginalAmounts[a.id] || a.amount;
+        const unitPrice = assetUnitPrices[a.id] || 0;
+        const assetReduceTrans = deptTrans.filter((t) => {
+          if (t.type !== 'sell' && t.type !== 'performance') return false;
+          if (t.assetId !== a.id) return false;
+          const transDate = parseISO(t.transactionDate);
+          return transDate < yearStart;
+        });
+        const usedBeforeYear = assetReduceTrans.reduce((s, t) => s + t.amount, 0);
+        const remainingAmount = Math.max(0, originalAmount - usedBeforeYear);
+        return sum + Math.round(remainingAmount * unitPrice * 100) / 100;
+      }, 0);
+
+      for (let mi = 0; mi < months.length; mi++) {
+        const monthDate = months[mi];
         const monthStart = startOfMonth(monthDate);
         const monthEnd = endOfMonth(monthDate);
         const monthKey = format(monthDate, 'yyyy-MM');
         const monthLabel = format(monthDate, 'M月', { locale: zhCN });
 
-        const isFirstMonth = monthDate.getMonth() === 0;
         let openingBalance: number;
-        let cumulativeCost = 0;
+        let openingCost: number;
 
-        if (isFirstMonth) {
+        if (mi === 0) {
           openingBalance = initialOpeningBalance;
+          openingCost = initialOpeningCost;
         } else {
-          const prevMonthKey = format(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1), 'yyyy-MM');
-          const prevItem = inventoryItems.find(
-            (item) => item.department === dept.id && item.month === prevMonthKey
-          );
-          openingBalance = prevItem ? prevItem.closingBalance : 0;
+          const prevItem = inventoryItems[inventoryItems.length - 1];
+          openingBalance = prevItem.closingBalance;
+          openingCost = prevItem.closingCost;
         }
 
-        const monthAddAssets = deptAllAssets.filter((a) => {
-          const acquired = parseISO(a.acquiredDate);
-          return isWithinInterval(acquired, { start: monthStart, end: monthEnd });
-        });
-
-        const monthReduceTrans = deptAllTrans.filter((t) => {
-          if (t.type !== 'sell' && t.type !== 'performance') return false;
+        const monthBuyTrans = deptTrans.filter((t) => {
+          if (t.type !== 'buy') return false;
           const transDate = parseISO(t.transactionDate);
           return isWithinInterval(transDate, { start: monthStart, end: monthEnd });
         });
 
-        const monthAdd = monthAddAssets.reduce((sum, a) => {
-          return sum + a.amount;
+        const monthAdd = monthBuyTrans.reduce((sum, t) => sum + t.amount, 0);
+
+        const monthAddCost = monthBuyTrans.reduce((sum, t) => {
+          return sum + (t.totalAmount || (t.unitPrice || 0) * t.amount);
         }, 0);
 
-        const monthReduce = monthReduceTrans.reduce((sum, t) => {
-          return sum + t.amount;
+        const monthNonBuyAssets = deptAssets.filter((a) => {
+          if (assetOriginalAmounts[a.id] !== undefined) return false;
+          const acquired = parseISO(a.acquiredDate);
+          return isWithinInterval(acquired, { start: monthStart, end: monthEnd });
+        });
+
+        const monthNonBuyAdd = monthNonBuyAssets.reduce((sum, a) => sum + a.amount, 0);
+        const monthNonBuyAddCost = monthNonBuyAssets.reduce((sum, a) => sum + a.cost, 0);
+
+        const totalAdd = monthAdd + monthNonBuyAdd;
+        const totalAddCost = monthAddCost + monthNonBuyAddCost;
+
+        const monthSellTrans = deptTrans.filter((t) => {
+          if (t.type !== 'sell') return false;
+          const transDate = parseISO(t.transactionDate);
+          return isWithinInterval(transDate, { start: monthStart, end: monthEnd });
+        });
+
+        const monthPerformanceTrans = deptTrans.filter((t) => {
+          if (t.type !== 'performance') return false;
+          const transDate = parseISO(t.transactionDate);
+          return isWithinInterval(transDate, { start: monthStart, end: monthEnd });
+        });
+
+        const monthReduce = monthSellTrans.reduce((sum, t) => sum + t.amount, 0)
+          + monthPerformanceTrans.reduce((sum, t) => sum + t.amount, 0);
+
+        const monthSellCostCarry = monthSellTrans.reduce((sum, t) => {
+          const asset = deptAssets.find((a) => a.id === t.assetId);
+          const unitPrice = asset ? asset.unitPrice : (t.unitPrice || 0);
+          return sum + Math.round(t.amount * unitPrice * 100) / 100;
         }, 0);
 
-        const closingBalance = Math.max(0, openingBalance + monthAdd - monthReduce);
-
-        const monthCost = monthAddAssets.reduce((sum, a) => {
-          const assetReduceThisMonth = monthReduceTrans
-            .filter((t) => t.assetId === a.id)
-            .reduce((s, t) => s + t.amount, 0);
-          const remainingRatio = a.amount > 0 ? (a.amount - assetReduceThisMonth) / a.amount : 0;
-          const addCost = a.cost * (remainingRatio > 0 ? 1 : 0);
-          return sum + addCost;
+        const monthPerformanceCostCarry = monthPerformanceTrans.reduce((sum, t) => {
+          const asset = deptAssets.find((a) => a.id === t.assetId);
+          const unitPrice = asset ? asset.unitPrice : 0;
+          return sum + Math.round(t.amount * unitPrice * 100) / 100;
         }, 0);
 
-        const monthRevenue = monthReduceTrans
-          .filter((t) => t.type === 'sell')
-          .reduce((sum, t) => sum + (t.totalAmount || 0), 0);
+        const totalReduceCost = monthSellCostCarry + monthPerformanceCostCarry;
 
-        const monthProfit = monthRevenue - monthCost;
+        const closingBalance = Math.max(0, openingBalance + totalAdd - monthReduce);
+        const closingCost = Math.max(0, Math.round((openingCost + totalAddCost - totalReduceCost) * 100) / 100);
+
+        const monthRevenue = monthSellTrans.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
+
+        const monthProfit = monthRevenue - monthSellCostCarry;
 
         inventoryItems.push({
           month: monthKey,
@@ -212,10 +271,10 @@ export function useReports(): UseReportsReturn {
           department: dept.id,
           departmentName: dept.name,
           openingBalance,
-          currentAdd: monthAdd,
+          currentAdd: totalAdd,
           currentReduce: monthReduce,
           closingBalance,
-          cost: monthCost,
+          cost: totalAddCost,
           revenue: monthRevenue,
           profit: monthProfit,
         });

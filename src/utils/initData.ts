@@ -16,20 +16,56 @@ import {
 } from './storage';
 import type { CarbonAsset, Transaction, ReductionProject, Department } from '@/types';
 
+function migrateAssetUnitPrice(asset: Record<string, unknown>): { unitPrice: number; cost: number } {
+  const amount = (asset.amount as number) || 0;
+  const rawCost = asset.cost as number | undefined;
+  const rawUnitPrice = asset.unitPrice as number | undefined;
+
+  if (rawUnitPrice !== undefined && rawUnitPrice !== null && !isNaN(rawUnitPrice)) {
+    const unitPrice = rawUnitPrice;
+    const cost = Math.round(amount * unitPrice * 100) / 100;
+    return { unitPrice, cost };
+  }
+
+  if (rawCost !== undefined && rawCost !== null && !isNaN(rawCost)) {
+    const costValue = rawCost;
+
+    if (costValue === 0) {
+      return { unitPrice: 0, cost: 0 };
+    }
+
+    const source = asset.source as string;
+    if (source === 'government' || source === 'transfer') {
+      if (costValue < 100 && amount > 100) {
+        return { unitPrice: costValue, cost: Math.round(amount * costValue * 100) / 100 };
+      }
+    }
+
+    if (costValue < 500 && amount >= 100) {
+      return { unitPrice: costValue, cost: Math.round(amount * costValue * 100) / 100 };
+    }
+
+    if (amount > 0) {
+      const derivedPrice = costValue / amount;
+      if (derivedPrice < 1 && costValue > 100) {
+        return { unitPrice: costValue, cost: Math.round(amount * costValue * 100) / 100 };
+      }
+      return { unitPrice: Math.round(derivedPrice * 100) / 100, cost: costValue };
+    }
+
+    return { unitPrice: costValue, cost: Math.round(amount * costValue * 100) / 100 };
+  }
+
+  return { unitPrice: 0, cost: 0 };
+}
+
 export const initializeData = (force = false): void => {
   if (!force && isInitialized()) {
     return;
   }
 
   const processedAssets: CarbonAsset[] = (assetsData as Array<Record<string, unknown>>).map((asset) => {
-    let unitPrice = 0;
-    if (asset.unitPrice !== undefined) {
-      unitPrice = asset.unitPrice as number;
-    } else if (asset.cost !== undefined) {
-      unitPrice = asset.cost as number;
-    }
-    const amount = (asset.amount as number) || 0;
-    const cost = Math.round(amount * unitPrice * 100) / 100;
+    const { unitPrice, cost } = migrateAssetUnitPrice(asset);
     return {
       ...asset,
       unitPrice,

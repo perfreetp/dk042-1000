@@ -115,6 +115,7 @@ export const exportMonthlyReportToExcel = (
     currentAdd: number;
     currentReduce: number;
     closingBalance: number;
+    closingCost: number;
     cost: number;
     revenue: number;
     profit: number;
@@ -128,9 +129,9 @@ export const exportMonthlyReportToExcel = (
     '本期增加(吨)': r.currentAdd,
     '本期减少(吨)': r.currentReduce,
     '期末余额(吨)': r.closingBalance,
-    '成本(元)': r.cost,
-    '收益(元)': r.revenue,
-    '利润(元)': r.profit,
+    '增加成本(元)': r.cost,
+    '卖出收益(元)': r.revenue,
+    '销售利润(元)': r.profit,
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(data);

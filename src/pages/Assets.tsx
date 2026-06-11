@@ -45,7 +45,7 @@ interface AssetFormData {
   year: number;
   department: string;
   projectId: string;
-  unitPrice: number;
+  unitPrice: number | '';
   cost: number;
   acquiredDate: string;
   expiryDate: string;
@@ -62,7 +62,7 @@ const initialFormData: AssetFormData = {
   year: new Date().getFullYear(),
   department: '',
   projectId: '',
-  unitPrice: 0,
+  unitPrice: '',
   cost: 0,
   acquiredDate: new Date().toISOString().split('T')[0],
   expiryDate: '',
@@ -172,11 +172,15 @@ export default function Assets() {
       setErrorMessage('请输入有效的数量');
       return;
     }
-    if (formData.unitPrice === undefined || formData.unitPrice === null || isNaN(formData.unitPrice)) {
-      setErrorMessage('请输入单价');
+    if (formData.unitPrice === '' || formData.unitPrice === null || formData.unitPrice === undefined) {
+      setErrorMessage('请输入单价（政府免费配额请填0）');
       return;
     }
-    if (formData.unitPrice < 0) {
+    if (typeof formData.unitPrice === 'number' && isNaN(formData.unitPrice)) {
+      setErrorMessage('请输入有效的单价');
+      return;
+    }
+    if (typeof formData.unitPrice === 'number' && formData.unitPrice < 0) {
       setErrorMessage('单价不能为负数');
       return;
     }
@@ -189,7 +193,8 @@ export default function Assets() {
       return;
     }
 
-    const totalCost = Math.round(formData.amount * formData.unitPrice * 100) / 100;
+    const price = typeof formData.unitPrice === 'number' ? formData.unitPrice : 0;
+    const totalCost = Math.round(formData.amount * price * 100) / 100;
     addAsset({
       type: formData.type,
       name: formData.name,
@@ -200,7 +205,7 @@ export default function Assets() {
       year: formData.year,
       department: formData.department,
       projectId: formData.projectId || undefined,
-      unitPrice: formData.unitPrice,
+      unitPrice: price,
       cost: totalCost,
       acquiredDate: formData.acquiredDate,
       expiryDate: formData.expiryDate || undefined,
@@ -451,10 +456,11 @@ export default function Assets() {
               value={formData.amount}
               onChange={(e) => {
                 const amount = Number(e.target.value);
+                const price = typeof formData.unitPrice === 'number' ? formData.unitPrice : 0;
                 setFormData({
                   ...formData,
                   amount,
-                  cost: Math.round(amount * formData.unitPrice * 100) / 100,
+                  cost: Math.round(amount * price * 100) / 100,
                 });
               }}
               placeholder="请输入数量"
@@ -471,14 +477,23 @@ export default function Assets() {
               type="number"
               value={formData.unitPrice}
               onChange={(e) => {
-                const unitPrice = Number(e.target.value);
-                setFormData({
-                  ...formData,
-                  unitPrice,
-                  cost: Math.round(formData.amount * unitPrice * 100) / 100,
-                });
+                const raw = e.target.value;
+                if (raw === '') {
+                  setFormData({
+                    ...formData,
+                    unitPrice: '',
+                    cost: 0,
+                  });
+                } else {
+                  const unitPrice = Number(raw);
+                  setFormData({
+                    ...formData,
+                    unitPrice,
+                    cost: Math.round(formData.amount * unitPrice * 100) / 100,
+                  });
+                }
               }}
-              placeholder="请输入单价"
+              placeholder="请输入单价（政府免费配额填0）"
               min="0"
               step="0.01"
               className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:text-white"

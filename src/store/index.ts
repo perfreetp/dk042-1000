@@ -107,8 +107,25 @@ export const useAppStore = create<AppState>((set, get) => ({
     const migratedAssets = rawAssets.map((a) => {
       let unitPrice = a.unitPrice;
       if (unitPrice === undefined || unitPrice === null || isNaN(unitPrice)) {
-        if (a.cost !== undefined && a.amount > 0) {
-          unitPrice = Math.round((a.cost / a.amount) * 100) / 100;
+        const rawCost = a.cost;
+        if (rawCost !== undefined && rawCost !== null && !isNaN(rawCost) && rawCost !== 0) {
+          const source = a.source;
+          if ((source === 'government' || source === 'transfer') && rawCost < 100 && a.amount > 100) {
+            unitPrice = rawCost;
+          } else if (rawCost < 500 && a.amount >= 100) {
+            unitPrice = rawCost;
+          } else if (a.amount > 0) {
+            const derivedPrice = rawCost / a.amount;
+            if (derivedPrice < 1 && rawCost > 100) {
+              unitPrice = rawCost;
+            } else {
+              unitPrice = Math.round(derivedPrice * 100) / 100;
+            }
+          } else {
+            unitPrice = rawCost;
+          }
+        } else if (rawCost === 0) {
+          unitPrice = 0;
         } else {
           unitPrice = 0;
         }
@@ -146,8 +163,25 @@ export const useAppStore = create<AppState>((set, get) => ({
     const migratedAssets = rawAssets.map((a) => {
       let unitPrice = a.unitPrice;
       if (unitPrice === undefined || unitPrice === null || isNaN(unitPrice)) {
-        if (a.cost !== undefined && a.amount > 0) {
-          unitPrice = Math.round((a.cost / a.amount) * 100) / 100;
+        const rawCost = a.cost;
+        if (rawCost !== undefined && rawCost !== null && !isNaN(rawCost) && rawCost !== 0) {
+          const source = a.source;
+          if ((source === 'government' || source === 'transfer') && rawCost < 100 && a.amount > 100) {
+            unitPrice = rawCost;
+          } else if (rawCost < 500 && a.amount >= 100) {
+            unitPrice = rawCost;
+          } else if (a.amount > 0) {
+            const derivedPrice = rawCost / a.amount;
+            if (derivedPrice < 1 && rawCost > 100) {
+              unitPrice = rawCost;
+            } else {
+              unitPrice = Math.round(derivedPrice * 100) / 100;
+            }
+          } else {
+            unitPrice = rawCost;
+          }
+        } else if (rawCost === 0) {
+          unitPrice = 0;
         } else {
           unitPrice = 0;
         }
@@ -447,12 +481,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     const updatedAssets = get().assets.map((a) => {
       if (a.id === assetId) {
         const newStatus = remainingAmount <= 0 ? 'used' : asset.status;
-        const costPerUnit = asset.amount > 0 ? asset.cost / asset.amount : 0;
-        const newCost = remainingAmount * costPerUnit;
+        const newCost = Math.round(asset.unitPrice * remainingAmount * 100) / 100;
         return {
           ...a,
           amount: remainingAmount,
-          cost: Math.round(newCost * 100) / 100,
+          unitPrice: asset.unitPrice,
+          cost: newCost,
           status: newStatus,
           updatedAt: now,
         };

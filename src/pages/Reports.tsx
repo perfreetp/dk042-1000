@@ -222,7 +222,7 @@ export default function Reports() {
     },
     {
       key: 'cost',
-      title: '成本',
+      title: '增加成本',
       align: 'right',
       render: (record) => (
         <span className="text-orange-600 dark:text-orange-400">
@@ -232,7 +232,7 @@ export default function Reports() {
     },
     {
       key: 'revenue',
-      title: '收益',
+      title: '卖出收益',
       align: 'right',
       render: (record) => (
         <span className="text-green-600 dark:text-green-400">
@@ -242,7 +242,7 @@ export default function Reports() {
     },
     {
       key: 'profit',
-      title: '利润',
+      title: '销售利润',
       align: 'right',
       render: (record) => (
         <span
@@ -650,13 +650,13 @@ export default function Reports() {
 
             <div className="grid grid-cols-3 gap-4">
               <Card padding="sm" className="bg-gradient-to-br from-orange-50 to-white">
-                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">总成本</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">增加成本</div>
                 <div className="text-xl font-bold text-orange-700 dark:text-orange-500">
                   {formatCurrency(inventorySummary.totalCost, 0)}
                 </div>
               </Card>
               <Card padding="sm" className="bg-gradient-to-br from-emerald-50 to-white">
-                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">总收益</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">卖出收益</div>
                 <div className="text-xl font-bold text-emerald-700 dark:text-emerald-500">
                   {formatCurrency(inventorySummary.totalRevenue, 0)}
                 </div>
@@ -669,7 +669,7 @@ export default function Reports() {
                     : 'bg-gradient-to-br from-red-50 to-white'
                 )}
               >
-                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">总利润</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">销售利润</div>
                 <div
                   className={cn(
                     'text-xl font-bold',
@@ -761,19 +761,19 @@ export default function Reports() {
                   </div>
                   <div className="grid grid-cols-3 gap-4 mt-2 text-sm">
                     <div className="text-right">
-                      <span className="text-gray-500 dark:text-gray-400">总成本: </span>
+                      <span className="text-gray-500 dark:text-gray-400">增加成本: </span>
                       <span className="font-medium text-orange-600 dark:text-orange-400">
                         {formatCurrency(inventorySummary.totalCost, 0)}
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-gray-500 dark:text-gray-400">总收益: </span>
+                      <span className="text-gray-500 dark:text-gray-400">卖出收益: </span>
                       <span className="font-medium text-green-600 dark:text-green-400">
                         {formatCurrency(inventorySummary.totalRevenue, 0)}
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-gray-500 dark:text-gray-400">总利润: </span>
+                      <span className="text-gray-500 dark:text-gray-400">销售利润: </span>
                       <span
                         className={cn(
                           'font-bold',
