@@ -113,17 +113,7 @@ export default function Reports() {
   };
 
   const handleExportInventory = () => {
-    const reportData = inventoryData.map((item) => ({
-      month: item.month,
-      department: item.departmentName,
-      openingBalance: item.openingBalance,
-      currentAdd: item.currentAdd,
-      currentReduce: item.currentReduce,
-      closingBalance: item.closingBalance,
-      cost: item.cost,
-      revenue: item.revenue,
-    }));
-    exportMonthlyReportToExcel(reportData);
+    exportMonthlyReportToExcel(inventoryData);
   };
 
   const handleExportPerformance = () => {

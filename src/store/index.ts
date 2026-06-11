@@ -124,8 +124,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   addAsset: (asset) => {
     const now = new Date().toISOString();
+    const unitPrice = asset.unitPrice ?? 0;
+    const amount = asset.amount ?? 0;
+    const cost = Math.round(amount * unitPrice * 100) / 100;
     const newAsset: CarbonAsset = {
       ...asset,
+      unitPrice,
+      cost,
       id: generateId('asset'),
       createdAt: now,
       updatedAt: now,
@@ -324,14 +329,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const updatedAssets = get().assets.map((a) => {
       if (a.id === assetId) {
-        const assetRemaining = asset.amount - amount;
         const newStatus = remainingAmount <= 0 ? 'used' : asset.status;
-        const costPerUnit = asset.amount > 0 ? asset.cost / asset.amount : 0;
-        const newCost = remainingAmount * costPerUnit;
+        const newCost = Math.round(asset.unitPrice * remainingAmount * 100) / 100;
         return {
           ...a,
           amount: remainingAmount,
-          cost: Math.round(newCost * 100) / 100,
+          unitPrice: asset.unitPrice,
+          cost: newCost,
           status: newStatus,
           updatedAt: now,
         };
@@ -445,7 +449,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     setTransactions(updatedTransactions);
 
     if (amount >= asset.amount) {
-      get().updateAssetStatus(assetId, 'frozen');
+      const updatedAssets = get().assets.map((a) =>
+        a.id === assetId ? { ...a, status: 'frozen' as const, updatedAt: now } : a
+      );
+      setAssets(updatedAssets);
+      set({ assets: updatedAssets, transactions: updatedTransactions });
     } else {
       const frozenAsset: CarbonAsset = {
         ...asset,
@@ -517,7 +525,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     setTransactions(updatedTransactions);
 
     if (amount >= asset.amount) {
-      get().updateAssetStatus(assetId, 'available');
+      const updatedAssets = get().assets.map((a) =>
+        a.id === assetId ? { ...a, status: 'available' as const, updatedAt: now } : a
+      );
+      setAssets(updatedAssets);
+      set({ assets: updatedAssets, transactions: updatedTransactions });
     } else {
       const unfrozenAsset: CarbonAsset = {
         ...asset,

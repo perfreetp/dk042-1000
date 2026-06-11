@@ -131,10 +131,28 @@ export function useReports(): UseReportsReturn {
     const inventoryItems: InventoryItem[] = [];
 
     for (const dept of depts) {
-      const deptAssets = filteredAssets.filter((a) => a.department === dept.id);
-      const deptTrans = filteredTransactions.filter((t) => t.department === dept.id);
+      const deptAssets = assets.filter((a) => a.department === dept.id);
+      const deptTrans = transactions.filter((t) => t.department === dept.id);
 
-      let cumulativeBalance = 0;
+      const priorYearAssets = deptAssets.filter((a) => {
+        const acquired = parseISO(a.acquiredDate);
+        return acquired < yearStart;
+      });
+      const priorYearAdd = priorYearAssets.reduce((sum, a) => sum + a.amount, 0);
+
+      const priorYearReduceTrans = deptTrans.filter((t) => {
+        if (t.type !== 'sell' && t.type !== 'performance') return false;
+        if (t.status !== 'completed') return false;
+        const transDate = parseISO(t.transactionDate);
+        return transDate < yearStart;
+      });
+      const priorYearReduce = priorYearReduceTrans.reduce((sum, t) => sum + t.amount, 0);
+
+      let cumulativeBalance = priorYearAdd - priorYearReduce;
+      if (cumulativeBalance < 0) cumulativeBalance = 0;
+
+      const currentYearAssets = filteredAssets.filter((a) => a.department === dept.id);
+      const currentYearTrans = filteredTransactions.filter((t) => t.department === dept.id);
 
       for (const monthDate of months) {
         const monthStart = startOfMonth(monthDate);
@@ -144,13 +162,13 @@ export function useReports(): UseReportsReturn {
 
         const openingBalance = cumulativeBalance;
 
-        const monthAddAssets = deptAssets.filter((a) => {
+        const monthAddAssets = currentYearAssets.filter((a) => {
           const acquired = parseISO(a.acquiredDate);
           return isWithinInterval(acquired, { start: monthStart, end: monthEnd });
         });
         const currentAdd = monthAddAssets.reduce((sum, a) => sum + a.amount, 0);
 
-        const monthReduceTrans = deptTrans.filter((t) => {
+        const monthReduceTrans = currentYearTrans.filter((t) => {
           if (t.type !== 'sell' && t.type !== 'performance') return false;
           if (t.status !== 'completed') return false;
           const transDate = parseISO(t.transactionDate);
@@ -184,7 +202,7 @@ export function useReports(): UseReportsReturn {
     }
 
     return inventoryItems;
-  }, [filteredAssets, filteredTransactions, departments, filters.department, filters.year]);
+  }, [assets, transactions, filteredAssets, filteredTransactions, departments, filters.department, filters.year]);
 
   const inventorySummary = useMemo(() => {
     const totalOpening = inventoryData.reduce((sum, item) => sum + item.openingBalance, 0);

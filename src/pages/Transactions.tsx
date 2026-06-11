@@ -166,7 +166,7 @@ export default function Transactions() {
   };
 
   const filteredTransactions = useMemo(() => {
-    const finalFilters: Omit<FilterParams, 'status'> & { type?: TransactionType; status?: TransactionStatus } = { ...filters };
+    const finalFilters = { ...filters } as Omit<FilterParams, 'status'> & { type?: TransactionType; status?: TransactionStatus };
     if (activeTab !== 'all') {
       finalFilters.type = activeTab as TransactionType;
     }
@@ -210,7 +210,7 @@ export default function Transactions() {
       startDate: dateRange?.[0] || undefined,
       endDate: dateRange?.[1] || undefined,
       keyword: values.keyword as string | undefined,
-    });
+    } as Omit<FilterParams, 'status'> & { type?: TransactionType; status?: TransactionStatus });
   };
 
   const handleExportExcel = () => {
@@ -286,7 +286,7 @@ export default function Transactions() {
         setErrorMessage(`交易数量(${transactionFormData.amount})不能超过可用余额(${asset.amount})`);
         return false;
       }
-      if ((modalType === 'sell' || modalType === 'buy') && transactionFormData.unitPrice < 0) {
+      if (modalType === 'sell' && transactionFormData.unitPrice < 0) {
         setErrorMessage('单价不能为负数');
         return false;
       }

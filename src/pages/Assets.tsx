@@ -45,6 +45,7 @@ interface AssetFormData {
   year: number;
   department: string;
   projectId: string;
+  unitPrice: number;
   cost: number;
   acquiredDate: string;
   expiryDate: string;
@@ -61,6 +62,7 @@ const initialFormData: AssetFormData = {
   year: new Date().getFullYear(),
   department: '',
   projectId: '',
+  unitPrice: 0,
   cost: 0,
   acquiredDate: new Date().toISOString().split('T')[0],
   expiryDate: '',
@@ -162,6 +164,7 @@ export default function Assets() {
     if (!formData.name || formData.amount <= 0) {
       return;
     }
+    const totalCost = Math.round(formData.amount * formData.unitPrice * 100) / 100;
     addAsset({
       type: formData.type,
       name: formData.name,
@@ -172,7 +175,8 @@ export default function Assets() {
       year: formData.year,
       department: formData.department,
       projectId: formData.projectId || undefined,
-      cost: formData.cost,
+      unitPrice: formData.unitPrice,
+      cost: totalCost,
       acquiredDate: formData.acquiredDate,
       expiryDate: formData.expiryDate || undefined,
       description: formData.description || undefined,
@@ -414,7 +418,14 @@ export default function Assets() {
             <input
               type="number"
               value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
+              onChange={(e) => {
+                const amount = Number(e.target.value);
+                setFormData({
+                  ...formData,
+                  amount,
+                  cost: Math.round(amount * formData.unitPrice * 100) / 100,
+                });
+              }}
               placeholder="请输入数量"
               min="0"
               step="0.01"
@@ -423,16 +434,37 @@ export default function Assets() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              成本 (元)
+              单价 (元/吨)
             </label>
             <input
               type="number"
-              value={formData.cost}
-              onChange={(e) => setFormData({ ...formData, cost: Number(e.target.value) })}
-              placeholder="请输入成本"
+              value={formData.unitPrice}
+              onChange={(e) => {
+                const unitPrice = Number(e.target.value);
+                setFormData({
+                  ...formData,
+                  unitPrice,
+                  cost: Math.round(formData.amount * unitPrice * 100) / 100,
+                });
+              }}
+              placeholder="请输入单价"
               min="0"
               step="0.01"
               className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              总成本 (元)
+            </label>
+            <input
+              type="text"
+              value={formData.cost.toLocaleString('zh-CN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+              disabled
+              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white cursor-not-allowed"
             />
           </div>
           <div>
@@ -597,7 +629,13 @@ export default function Assets() {
                     </p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400">成本</label>
+                    <label className="text-sm text-gray-500 dark:text-gray-400">单价</label>
+                    <p className="text-gray-900 dark:text-white mt-1">
+                      {formatCurrency(selectedAsset.unitPrice)} / 吨
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-500 dark:text-gray-400">总成本</label>
                     <p className="text-gray-900 dark:text-white mt-1">
                       {formatCurrency(selectedAsset.cost)}
                     </p>

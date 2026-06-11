@@ -105,16 +105,32 @@ export const exportProjectsToExcel = (projects: ReductionProject[], filename?: s
   downloadFile(excelBuffer, filename || `减排项目_${formatDate(new Date())}.xlsx`, EXCEL_MIME_TYPE);
 };
 
-export const exportMonthlyReportToExcel = (report: MonthlyReport[], filename?: string): void => {
+export const exportMonthlyReportToExcel = (
+  report: Array<{
+    month: string;
+    monthLabel: string;
+    department: string;
+    departmentName: string;
+    openingBalance: number;
+    currentAdd: number;
+    currentReduce: number;
+    closingBalance: number;
+    cost: number;
+    revenue: number;
+    profit: number;
+  }>,
+  filename?: string
+): void => {
   const data = report.map((r) => ({
-    '月份': r.month,
-    '部门': r.department,
+    '月份': r.monthLabel,
+    '部门': r.departmentName,
     '期初余额(吨)': r.openingBalance,
     '本期增加(吨)': r.currentAdd,
     '本期减少(吨)': r.currentReduce,
     '期末余额(吨)': r.closingBalance,
-    '本期成本(元)': r.cost,
-    '本期收益(元)': r.revenue,
+    '成本(元)': r.cost,
+    '收益(元)': r.revenue,
+    '利润(元)': r.profit,
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(data);
