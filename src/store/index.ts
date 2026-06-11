@@ -19,7 +19,39 @@ import type {
   AssetStatus,
   TransactionType,
   TransactionStatus,
+  AssetType,
+  AssetSource,
 } from '@/types';
+
+export interface BuyAssetData {
+  name: string;
+  type: AssetType;
+  amount: number;
+  unitPrice: number;
+  source: AssetSource;
+  year: number;
+  department: string;
+  projectId?: string;
+  acquiredDate: string;
+  expiryDate?: string;
+  description?: string;
+  counterparty?: string;
+  transactionDate: string;
+  operator: string;
+  remark?: string;
+}
+
+export interface TransactionWithValidation {
+  assetId: string;
+  amount: number;
+  unitPrice?: number;
+  counterparty?: string;
+  department: string;
+  projectId?: string;
+  transactionDate: string;
+  operator: string;
+  remark?: string;
+}
 
 interface AppState {
   assets: CarbonAsset[];
@@ -40,6 +72,16 @@ interface AppState {
   addTransaction: (transaction: Omit<Transaction, 'id' | 'createdAt'>) => void;
   updateTransaction: (id: string, updates: Partial<Transaction>) => void;
   filterTransactions: (filters: Omit<FilterParams, 'status'> & { type?: TransactionType; status?: TransactionStatus }) => Transaction[];
+
+  buyAsset: (data: BuyAssetData) => { success: boolean; error?: string; assetId?: string };
+  sellAsset: (data: TransactionWithValidation) => { success: boolean; error?: string };
+  performanceDeduction: (data: TransactionWithValidation) => { success: boolean; error?: string };
+  freezeAsset: (data: Omit<TransactionWithValidation, 'unitPrice' | 'counterparty'>) => { success: boolean; error?: string };
+  unfreezeAsset: (data: Omit<TransactionWithValidation, 'unitPrice' | 'counterparty'>) => { success: boolean; error?: string };
+
+  getAvailableAssets: () => CarbonAsset[];
+  getFrozenAssets: () => CarbonAsset[];
+  getAssetCost: (asset: CarbonAsset) => number;
 
   addProject: (project: Omit<ReductionProject, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateProject: (id: string, updates: Partial<ReductionProject>) => void;
@@ -169,6 +211,355 @@ export const useAppStore = create<AppState>((set, get) => ({
         get().updateAsset(transaction.assetId, { amount: Math.max(0, newAmount) });
       }
     }
+  },
+
+  buyAsset: (data) => {
+    const {
+      name, type, amount, unitPrice, source, year, department,
+      projectId, acquiredDate, expiryDate, description,
+      counterparty, transactionDate, operator, remark,
+    } = data;
+
+    if (amount <= 0) {
+      return { success: false, error: '交易数量必须大于0' };
+    }
+    if (unitPrice < 0) {
+      return { success: false, error: '单价不能为负数' };
+    }
+
+    const totalCost = amount * unitPrice;
+    const now = new Date().toISOString();
+
+    const newAsset: CarbonAsset = {
+      id: generateId('asset'),
+      name,
+      type,
+      amount,
+      unit: '吨CO2e',
+      source,
+      status: 'available',
+      year,
+      department,
+      projectId,
+      unitPrice,
+      cost: totalCost,
+      acquiredDate,
+      expiryDate,
+      description,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const newTransaction: Transaction = {
+      id: generateId('trans'),
+      type: 'buy',
+      assetId: newAsset.id,
+      assetName: name,
+      assetType: type,
+      amount,
+      unitPrice,
+      totalAmount: totalCost,
+      counterparty,
+      department,
+      projectId,
+      status: 'completed',
+      transactionDate,
+      operator,
+      remark,
+      createdAt: now,
+    };
+
+    const updatedAssets = [...get().assets, newAsset];
+    const updatedTransactions = [...get().transactions, newTransaction];
+    
+    setAssets(updatedAssets);
+    setTransactions(updatedTransactions);
+    set({ assets: updatedAssets, transactions: updatedTransactions });
+
+    return { success: true, assetId: newAsset.id };
+  },
+
+  sellAsset: (data) => {
+    const { assetId, amount, unitPrice, counterparty, department, projectId, transactionDate, operator, remark } = data;
+    const asset = get().getAssetById(assetId);
+
+    if (!asset) {
+      return { success: false, error: '资产不存在' };
+    }
+    if (asset.status !== 'available') {
+      return { success: false, error: '只能卖出可用状态的资产' };
+    }
+    if (amount <= 0) {
+      return { success: false, error: '卖出数量必须大于0' };
+    }
+    if (amount > asset.amount) {
+      return { success: false, error: `卖出数量(${amount})不能超过可用余额(${asset.amount})` };
+    }
+
+    const totalAmount = (unitPrice || 0) * amount;
+    const now = new Date().toISOString();
+    const remainingAmount = asset.amount - amount;
+
+    const newTransaction: Transaction = {
+      id: generateId('trans'),
+      type: 'sell',
+      assetId,
+      assetName: asset.name,
+      assetType: asset.type,
+      amount,
+      unitPrice,
+      totalAmount,
+      counterparty,
+      department,
+      projectId,
+      status: 'completed',
+      transactionDate,
+      operator,
+      remark,
+      createdAt: now,
+    };
+
+    const updatedTransactions = [...get().transactions, newTransaction];
+    setTransactions(updatedTransactions);
+
+    const updatedAssets = get().assets.map((a) => {
+      if (a.id === assetId) {
+        const assetRemaining = asset.amount - amount;
+        const newStatus = remainingAmount <= 0 ? 'used' : asset.status;
+        const costPerUnit = asset.amount > 0 ? asset.cost / asset.amount : 0;
+        const newCost = remainingAmount * costPerUnit;
+        return {
+          ...a,
+          amount: remainingAmount,
+          cost: Math.round(newCost * 100) / 100,
+          status: newStatus,
+          updatedAt: now,
+        };
+      }
+      return a;
+    });
+
+    setAssets(updatedAssets);
+    set({ assets: updatedAssets, transactions: updatedTransactions });
+
+    return { success: true };
+  },
+
+  performanceDeduction: (data) => {
+    const { assetId, amount, department, projectId, transactionDate, operator, remark } = data;
+    const asset = get().getAssetById(assetId);
+
+    if (!asset) {
+      return { success: false, error: '资产不存在' };
+    }
+    if (asset.status !== 'available') {
+      return { success: false, error: '只能抵扣可用状态的资产' };
+    }
+    if (amount <= 0) {
+      return { success: false, error: '抵扣数量必须大于0' };
+    }
+    if (amount > asset.amount) {
+      return { success: false, error: `抵扣数量(${amount})不能超过可用余额(${asset.amount})` };
+    }
+
+    const now = new Date().toISOString();
+    const remainingAmount = asset.amount - amount;
+
+    const newTransaction: Transaction = {
+      id: generateId('trans'),
+      type: 'performance',
+      assetId,
+      assetName: asset.name,
+      assetType: asset.type,
+      amount,
+      department,
+      projectId,
+      status: 'completed',
+      transactionDate,
+      operator,
+      remark,
+      createdAt: now,
+    };
+
+    const updatedTransactions = [...get().transactions, newTransaction];
+    setTransactions(updatedTransactions);
+
+    const updatedAssets = get().assets.map((a) => {
+      if (a.id === assetId) {
+        const newStatus = remainingAmount <= 0 ? 'used' : asset.status;
+        const costPerUnit = asset.amount > 0 ? asset.cost / asset.amount : 0;
+        const newCost = remainingAmount * costPerUnit;
+        return {
+          ...a,
+          amount: remainingAmount,
+          cost: Math.round(newCost * 100) / 100,
+          status: newStatus,
+          updatedAt: now,
+        };
+      }
+      return a;
+    });
+
+    setAssets(updatedAssets);
+    set({ assets: updatedAssets, transactions: updatedTransactions });
+
+    return { success: true };
+  },
+
+  freezeAsset: (data) => {
+    const { assetId, amount, department, projectId, transactionDate, operator, remark } = data;
+    const asset = get().getAssetById(assetId);
+
+    if (!asset) {
+      return { success: false, error: '资产不存在' };
+    }
+    if (asset.status !== 'available') {
+      return { success: false, error: '只能冻结可用状态的资产' };
+    }
+    if (amount <= 0) {
+      return { success: false, error: '冻结数量必须大于0' };
+    }
+    if (amount > asset.amount) {
+      return { success: false, error: `冻结数量(${amount})不能超过可用余额(${asset.amount})` };
+    }
+
+    const now = new Date().toISOString();
+
+    const newTransaction: Transaction = {
+      id: generateId('trans'),
+      type: 'freeze',
+      assetId,
+      assetName: asset.name,
+      assetType: asset.type,
+      amount,
+      department,
+      projectId,
+      status: 'completed',
+      transactionDate,
+      operator,
+      remark,
+      createdAt: now,
+    };
+
+    const updatedTransactions = [...get().transactions, newTransaction];
+    setTransactions(updatedTransactions);
+
+    if (amount >= asset.amount) {
+      get().updateAssetStatus(assetId, 'frozen');
+    } else {
+      const frozenAsset: CarbonAsset = {
+        ...asset,
+        id: generateId('asset'),
+        amount,
+        status: 'frozen',
+        unitPrice: asset.unitPrice,
+        cost: Math.round(asset.unitPrice * amount * 100) / 100,
+        createdAt: now,
+        updatedAt: now,
+      };
+      
+      const remainingAmount = asset.amount - amount;
+      const remainingAsset = {
+        ...asset,
+        amount: remainingAmount,
+        unitPrice: asset.unitPrice,
+        cost: Math.round(asset.unitPrice * remainingAmount * 100) / 100,
+        updatedAt: now,
+      };
+
+      const updatedAssets = get().assets
+        .filter((a) => a.id !== assetId)
+        .concat([frozenAsset, remainingAsset]);
+      
+      setAssets(updatedAssets);
+      set({ assets: updatedAssets, transactions: updatedTransactions });
+    }
+
+    return { success: true };
+  },
+
+  unfreezeAsset: (data) => {
+    const { assetId, amount, department, projectId, transactionDate, operator, remark } = data;
+    const asset = get().getAssetById(assetId);
+
+    if (!asset) {
+      return { success: false, error: '资产不存在' };
+    }
+    if (asset.status !== 'frozen') {
+      return { success: false, error: '只能解冻冻结状态的资产' };
+    }
+    if (amount <= 0) {
+      return { success: false, error: '解冻数量必须大于0' };
+    }
+    if (amount > asset.amount) {
+      return { success: false, error: `解冻数量(${amount})不能超过冻结余额(${asset.amount})` };
+    }
+
+    const now = new Date().toISOString();
+
+    const newTransaction: Transaction = {
+      id: generateId('trans'),
+      type: 'unfreeze',
+      assetId,
+      assetName: asset.name,
+      assetType: asset.type,
+      amount,
+      department,
+      projectId,
+      status: 'completed',
+      transactionDate,
+      operator,
+      remark,
+      createdAt: now,
+    };
+
+    const updatedTransactions = [...get().transactions, newTransaction];
+    setTransactions(updatedTransactions);
+
+    if (amount >= asset.amount) {
+      get().updateAssetStatus(assetId, 'available');
+    } else {
+      const unfrozenAsset: CarbonAsset = {
+        ...asset,
+        id: generateId('asset'),
+        amount,
+        status: 'available',
+        unitPrice: asset.unitPrice,
+        cost: Math.round(asset.unitPrice * amount * 100) / 100,
+        createdAt: now,
+        updatedAt: now,
+      };
+      
+      const remainingAmount = asset.amount - amount;
+      const remainingAsset = {
+        ...asset,
+        amount: remainingAmount,
+        unitPrice: asset.unitPrice,
+        cost: Math.round(asset.unitPrice * remainingAmount * 100) / 100,
+        updatedAt: now,
+      };
+
+      const updatedAssets = get().assets
+        .filter((a) => a.id !== assetId)
+        .concat([unfrozenAsset, remainingAsset]);
+      
+      setAssets(updatedAssets);
+      set({ assets: updatedAssets, transactions: updatedTransactions });
+    }
+
+    return { success: true };
+  },
+
+  getAvailableAssets: () => {
+    return get().assets.filter((a) => a.status === 'available');
+  },
+
+  getFrozenAssets: () => {
+    return get().assets.filter((a) => a.status === 'frozen');
+  },
+
+  getAssetCost: (asset) => {
+    return asset.amount > 0 ? asset.cost / asset.amount : 0;
   },
 
   updateTransaction: (id, updates) => {

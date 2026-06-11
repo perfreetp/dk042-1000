@@ -8,6 +8,7 @@ import {
   Snowflake,
   Sun,
   Search,
+  AlertCircle,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import type {
@@ -16,11 +17,14 @@ import type {
   TransactionType,
   TransactionStatus,
   CarbonAsset,
+  AssetType,
+  AssetSource,
 } from '@/types';
 import {
   TransactionTypeLabels,
   TransactionStatusLabels,
   AssetTypeLabels,
+  AssetSourceLabels,
 } from '@/types';
 import Button from '@/components/ui/Button';
 import FilterBar from '@/components/ui/FilterBar';
@@ -37,19 +41,35 @@ import {
   getTransactionTypeLabel,
   getTransactionStatusLabel,
   getAssetTypeLabel,
+  getStatusColorClass,
 } from '@/utils/format';
 import { exportTransactionsToExcel } from '@/utils/export';
 import { cn } from '@/lib/utils';
 
 type TransactionModalType = 'buy' | 'sell' | 'performance' | 'freeze' | 'unfreeze' | null;
 
-interface TransactionFormData {
-  assetId: string;
-  assetName: string;
-  assetType: string;
+interface BuyFormData {
+  name: string;
+  type: AssetType;
   amount: number;
   unitPrice: number;
-  totalAmount: number;
+  source: AssetSource;
+  year: number;
+  department: string;
+  projectId: string;
+  acquiredDate: string;
+  expiryDate: string;
+  description: string;
+  counterparty: string;
+  transactionDate: string;
+  operator: string;
+  remark: string;
+}
+
+interface TransactionFormData {
+  assetId: string;
+  amount: number;
+  unitPrice: number;
   counterparty: string;
   department: string;
   projectId: string;
@@ -58,13 +78,28 @@ interface TransactionFormData {
   remark: string;
 }
 
-const initialFormData: TransactionFormData = {
-  assetId: '',
-  assetName: '',
-  assetType: '',
+const initialBuyFormData: BuyFormData = {
+  name: '',
+  type: 'quota',
   amount: 0,
   unitPrice: 0,
-  totalAmount: 0,
+  source: 'purchase',
+  year: new Date().getFullYear(),
+  department: '',
+  projectId: '',
+  acquiredDate: new Date().toISOString().split('T')[0],
+  expiryDate: '',
+  description: '',
+  counterparty: '',
+  transactionDate: new Date().toISOString().split('T')[0],
+  operator: '当前用户',
+  remark: '',
+};
+
+const initialTransactionFormData: TransactionFormData = {
+  assetId: '',
+  amount: 0,
+  unitPrice: 0,
   counterparty: '',
   department: '',
   projectId: '',
@@ -82,6 +117,16 @@ const tabOptions: Array<{ key: TransactionType | 'all'; label: string }> = [
   { key: 'unfreeze', label: '解冻' },
 ];
 
+const assetTypeOptions = Object.entries(AssetTypeLabels).map(([value, label]) => ({
+  label,
+  value,
+}));
+
+const assetSourceOptions = Object.entries(AssetSourceLabels).map(([value, label]) => ({
+  label,
+  value,
+}));
+
 export default function Transactions() {
   const {
     assets,
@@ -89,22 +134,36 @@ export default function Transactions() {
     departments,
     projects,
     filterTransactions,
-    addTransaction,
     getDepartmentName,
     getProjectName,
     getAssetById,
+    getAvailableAssets,
+    getFrozenAssets,
+    buyAsset,
+    sellAsset,
+    performanceDeduction,
+    freezeAsset,
+    unfreezeAsset,
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<TransactionType | 'all'>('all');
   const [filters, setFilters] = useState<Omit<FilterParams, 'status'> & { type?: TransactionType; status?: TransactionStatus }>({});
   const [modalType, setModalType] = useState<TransactionModalType>(null);
-  const [formData, setFormData] = useState<TransactionFormData>(initialFormData);
+  const [buyFormData, setBuyFormData] = useState<BuyFormData>(initialBuyFormData);
+  const [transactionFormData, setTransactionFormData] = useState<TransactionFormData>(initialTransactionFormData);
   const [exporting, setExporting] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<CarbonAsset | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const availableAssets = useMemo(() => {
-    return assets.filter((a) => a.status === 'available');
-  }, [assets]);
+  const availableAssets = useMemo(() => getAvailableAssets(), [assets]);
+  const frozenAssets = useMemo(() => getFrozenAssets(), [assets]);
+
+  const getSelectableAssets = () => {
+    if (modalType === 'freeze') return availableAssets;
+    if (modalType === 'unfreeze') return frozenAssets;
+    return availableAssets;
+  };
 
   const filteredTransactions = useMemo(() => {
     const finalFilters: Omit<FilterParams, 'status'> & { type?: TransactionType; status?: TransactionStatus } = { ...filters };
@@ -127,6 +186,11 @@ export default function Transactions() {
   const departmentOptions = departments.map((d) => ({
     label: d.name,
     value: d.id,
+  }));
+
+  const yearOptions = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => ({
+    label: `${year}年`,
+    value: year,
   }));
 
   const filterConfigs = [
@@ -159,8 +223,10 @@ export default function Transactions() {
   };
 
   const openModal = (type: TransactionModalType) => {
-    setFormData(initialFormData);
+    setBuyFormData(initialBuyFormData);
+    setTransactionFormData(initialTransactionFormData);
     setSelectedAsset(null);
+    setErrorMessage('');
     setModalType(type);
   };
 
@@ -168,51 +234,156 @@ export default function Transactions() {
     const asset = getAssetById(assetId);
     if (asset) {
       setSelectedAsset(asset);
-      setFormData({
-        ...formData,
+      setTransactionFormData({
+        ...transactionFormData,
         assetId: asset.id,
-        assetName: asset.name,
-        assetType: asset.type,
         department: asset.department,
       });
     }
   };
 
+  const validateTransaction = (): boolean => {
+    if (modalType === 'buy') {
+      if (!buyFormData.name) {
+        setErrorMessage('请输入资产名称');
+        return false;
+      }
+      if (!buyFormData.type) {
+        setErrorMessage('请选择资产类型');
+        return false;
+      }
+      if (!buyFormData.source) {
+        setErrorMessage('请选择资产来源');
+        return false;
+      }
+      if (!buyFormData.department) {
+        setErrorMessage('请选择所属部门');
+        return false;
+      }
+      if (buyFormData.amount <= 0) {
+        setErrorMessage('交易数量必须大于0');
+        return false;
+      }
+      if (buyFormData.unitPrice < 0) {
+        setErrorMessage('单价不能为负数');
+        return false;
+      }
+    } else {
+      if (!transactionFormData.assetId) {
+        setErrorMessage('请选择资产');
+        return false;
+      }
+      const asset = getAssetById(transactionFormData.assetId);
+      if (!asset) {
+        setErrorMessage('资产不存在');
+        return false;
+      }
+      if (transactionFormData.amount <= 0) {
+        setErrorMessage('交易数量必须大于0');
+        return false;
+      }
+      if (transactionFormData.amount > asset.amount) {
+        setErrorMessage(`交易数量(${transactionFormData.amount})不能超过可用余额(${asset.amount})`);
+        return false;
+      }
+      if ((modalType === 'sell' || modalType === 'buy') && transactionFormData.unitPrice < 0) {
+        setErrorMessage('单价不能为负数');
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleSubmitTransaction = () => {
-    if (!formData.assetId || formData.amount <= 0) {
+    if (!validateTransaction()) {
       return;
     }
 
-    const type = modalType as TransactionType;
-    const unitPrice = formData.unitPrice || 0;
-    const totalAmount = formData.amount * unitPrice;
+    setShowConfirm(true);
+  };
 
-    addTransaction({
-      type,
-      assetId: formData.assetId,
-      assetName: formData.assetName,
-      assetType: formData.assetType as never,
-      amount: formData.amount,
-      unitPrice: unitPrice || undefined,
-      totalAmount: totalAmount || undefined,
-      counterparty: formData.counterparty || undefined,
-      department: formData.department,
-      projectId: formData.projectId || undefined,
-      status: 'completed',
-      transactionDate: formData.transactionDate,
-      remark: formData.remark || undefined,
-      operator: formData.operator,
-    });
+  const confirmSubmitTransaction = () => {
+    setShowConfirm(false);
 
-    setModalType(null);
-    setFormData(initialFormData);
-    setSelectedAsset(null);
+    let result;
+
+    if (modalType === 'buy') {
+      result = buyAsset({
+        name: buyFormData.name,
+        type: buyFormData.type,
+        amount: buyFormData.amount,
+        unitPrice: buyFormData.unitPrice,
+        source: buyFormData.source,
+        year: buyFormData.year,
+        department: buyFormData.department,
+        projectId: buyFormData.projectId || undefined,
+        acquiredDate: buyFormData.acquiredDate,
+        expiryDate: buyFormData.expiryDate || undefined,
+        description: buyFormData.description || undefined,
+        counterparty: buyFormData.counterparty || undefined,
+        transactionDate: buyFormData.transactionDate,
+        operator: buyFormData.operator,
+        remark: buyFormData.remark || undefined,
+      });
+    } else if (modalType === 'sell') {
+      result = sellAsset({
+        assetId: transactionFormData.assetId,
+        amount: transactionFormData.amount,
+        unitPrice: transactionFormData.unitPrice || undefined,
+        counterparty: transactionFormData.counterparty || undefined,
+        department: transactionFormData.department,
+        projectId: transactionFormData.projectId || undefined,
+        transactionDate: transactionFormData.transactionDate,
+        operator: transactionFormData.operator,
+        remark: transactionFormData.remark || undefined,
+      });
+    } else if (modalType === 'performance') {
+      result = performanceDeduction({
+        assetId: transactionFormData.assetId,
+        amount: transactionFormData.amount,
+        department: transactionFormData.department,
+        projectId: transactionFormData.projectId || undefined,
+        transactionDate: transactionFormData.transactionDate,
+        operator: transactionFormData.operator,
+        remark: transactionFormData.remark || undefined,
+      });
+    } else if (modalType === 'freeze') {
+      result = freezeAsset({
+        assetId: transactionFormData.assetId,
+        amount: transactionFormData.amount,
+        department: transactionFormData.department,
+        projectId: transactionFormData.projectId || undefined,
+        transactionDate: transactionFormData.transactionDate,
+        operator: transactionFormData.operator,
+        remark: transactionFormData.remark || undefined,
+      });
+    } else if (modalType === 'unfreeze') {
+      result = unfreezeAsset({
+        assetId: transactionFormData.assetId,
+        amount: transactionFormData.amount,
+        department: transactionFormData.department,
+        projectId: transactionFormData.projectId || undefined,
+        transactionDate: transactionFormData.transactionDate,
+        operator: transactionFormData.operator,
+        remark: transactionFormData.remark || undefined,
+      });
+    }
+
+    if (result?.success) {
+      setModalType(null);
+      setBuyFormData(initialBuyFormData);
+      setTransactionFormData(initialTransactionFormData);
+      setSelectedAsset(null);
+      setErrorMessage('');
+    } else {
+      setErrorMessage(result?.error || '操作失败，请重试');
+    }
   };
 
   const getModalTitle = () => {
     switch (modalType) {
       case 'buy':
-        return '登记买入';
+        return '登记买入（新增资产）';
       case 'sell':
         return '登记卖出';
       case 'performance':
@@ -224,6 +395,13 @@ export default function Transactions() {
       default:
         return '';
     }
+  };
+
+  const getTotalAmount = () => {
+    if (modalType === 'buy') {
+      return buyFormData.amount * buyFormData.unitPrice;
+    }
+    return transactionFormData.amount * transactionFormData.unitPrice;
   };
 
   const columns = [
@@ -318,6 +496,8 @@ export default function Transactions() {
       ),
     },
   ];
+
+  const selectableAssets = getSelectableAssets();
 
   return (
     <div className="space-y-6">
@@ -428,7 +608,7 @@ export default function Transactions() {
         open={modalType !== null}
         onClose={() => setModalType(null)}
         title={getModalTitle()}
-        width="max-w-2xl"
+        width="max-w-3xl"
         footer={
           <>
             <Button variant="ghost" onClick={() => setModalType(null)}>
@@ -440,106 +620,139 @@ export default function Transactions() {
           </>
         }
       >
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              选择资产
-            </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <select
-                value={formData.assetId}
-                onChange={(e) => handleAssetSelect(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:text-white appearance-none cursor-pointer"
-              >
-                <option value="">请选择资产</option>
-                {availableAssets.map((asset) => (
-                  <option key={asset.id} value={asset.id}>
-                    {asset.name} ({AssetTypeLabels[asset.type]}) - {formatCarbon(asset.amount)}
-                  </option>
-                ))}
-              </select>
-            </div>
+        {errorMessage && (
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <span className="text-sm text-red-700 dark:text-red-300">{errorMessage}</span>
           </div>
+        )}
 
-          {selectedAsset && (
-            <div className="col-span-2 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-              <div className="grid grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-500 dark:text-gray-400">可用余额：</span>
-                  <span className="font-medium text-gray-900 dark:text-white">
-                    {formatCarbon(selectedAsset.amount)}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-500 dark:text-gray-400">资产类型：</span>
-                  <span className="font-medium text-gray-900 dark:text-white">
-                    {AssetTypeLabels[selectedAsset.type]}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-500 dark:text-gray-400">所属部门：</span>
-                  <span className="font-medium text-gray-900 dark:text-white">
-                    {getDepartmentName(selectedAsset.department)}
-                  </span>
-                </div>
+        {modalType === 'buy' ? (
+          <div className="space-y-4">
+            <div className="p-3 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg">
+              <p className="text-sm text-primary-700 dark:text-primary-300">
+                <span className="font-medium">提示：</span>买入交易将创建新的碳资产记录，请完整填写资产信息。
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  资产名称 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={buyFormData.name}
+                  onChange={(e) => setBuyFormData({ ...buyFormData, name: e.target.value })}
+                  placeholder="请输入资产名称，如：2026年度碳排放配额"
+                  className="input-field"
+                />
               </div>
-            </div>
-          )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              交易数量 (tCO₂e)
-            </label>
-            <input
-              type="number"
-              value={formData.amount}
-              onChange={(e) => {
-                const amount = Number(e.target.value);
-                setFormData({
-                  ...formData,
-                  amount,
-                  totalAmount: amount * formData.unitPrice,
-                });
-              }}
-              placeholder="请输入数量"
-              min="0"
-              step="0.01"
-              max={selectedAsset?.amount || undefined}
-              className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:text-white"
-            />
-          </div>
-
-          {(modalType === 'buy' || modalType === 'sell') && (
-            <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  单价 (元/吨)
+                  资产类型 <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={buyFormData.type}
+                  onChange={(e) => setBuyFormData({ ...buyFormData, type: e.target.value as AssetType })}
+                  className="input-field appearance-none cursor-pointer"
+                >
+                  {assetTypeOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  资产来源 <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={buyFormData.source}
+                  onChange={(e) => setBuyFormData({ ...buyFormData, source: e.target.value as AssetSource })}
+                  className="input-field appearance-none cursor-pointer"
+                >
+                  {assetSourceOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  年度 <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={buyFormData.year}
+                  onChange={(e) => setBuyFormData({ ...buyFormData, year: Number(e.target.value) })}
+                  className="input-field appearance-none cursor-pointer"
+                >
+                  {yearOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  所属部门 <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={buyFormData.department}
+                  onChange={(e) => setBuyFormData({ ...buyFormData, department: e.target.value })}
+                  className="input-field appearance-none cursor-pointer"
+                >
+                  <option value="">请选择部门</option>
+                  {departmentOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  数量 (tCO₂e) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
-                  value={formData.unitPrice}
+                  value={buyFormData.amount}
+                  onChange={(e) => {
+                    const amount = Number(e.target.value);
+                    setBuyFormData({ ...buyFormData, amount });
+                  }}
+                  placeholder="请输入数量"
+                  min="0"
+                  step="0.01"
+                  className="input-field"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  单价 (元/吨) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  value={buyFormData.unitPrice}
                   onChange={(e) => {
                     const unitPrice = Number(e.target.value);
-                    setFormData({
-                      ...formData,
-                      unitPrice,
-                      totalAmount: formData.amount * unitPrice,
-                    });
+                    setBuyFormData({ ...buyFormData, unitPrice });
                   }}
                   placeholder="请输入单价"
                   min="0"
                   step="0.01"
-                  className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:text-white"
+                  className="input-field"
                 />
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   总金额 (元)
                 </label>
                 <input
                   type="text"
-                  value={formData.totalAmount.toLocaleString('zh-CN', {
+                  value={getTotalAmount().toLocaleString('zh-CN', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
@@ -547,85 +760,318 @@ export default function Transactions() {
                   className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white cursor-not-allowed"
                 />
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   交易对手
                 </label>
                 <input
                   type="text"
-                  value={formData.counterparty}
-                  onChange={(e) =>
-                    setFormData({ ...formData, counterparty: e.target.value })
-                  }
+                  value={buyFormData.counterparty}
+                  onChange={(e) => setBuyFormData({ ...buyFormData, counterparty: e.target.value })}
                   placeholder="请输入交易对手"
-                  className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:text-white"
+                  className="input-field"
                 />
               </div>
-            </>
-          )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              交易日期
-            </label>
-            <input
-              type="date"
-              value={formData.transactionDate}
-              onChange={(e) =>
-                setFormData({ ...formData, transactionDate: e.target.value })
-              }
-              className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:text-white"
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  获取日期
+                </label>
+                <input
+                  type="date"
+                  value={buyFormData.acquiredDate}
+                  onChange={(e) => setBuyFormData({ ...buyFormData, acquiredDate: e.target.value })}
+                  className="input-field"
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              关联项目
-            </label>
-            <select
-              value={formData.projectId}
-              onChange={(e) =>
-                setFormData({ ...formData, projectId: e.target.value })
-              }
-              className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:text-white appearance-none cursor-pointer"
-            >
-              <option value="">无</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  到期日期
+                </label>
+                <input
+                  type="date"
+                  value={buyFormData.expiryDate}
+                  onChange={(e) => setBuyFormData({ ...buyFormData, expiryDate: e.target.value })}
+                  className="input-field"
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              操作员
-            </label>
-            <input
-              type="text"
-              value={formData.operator}
-              disabled
-              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white cursor-not-allowed"
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  关联项目
+                </label>
+                <select
+                  value={buyFormData.projectId}
+                  onChange={(e) => setBuyFormData({ ...buyFormData, projectId: e.target.value })}
+                  className="input-field appearance-none cursor-pointer"
+                >
+                  <option value="">无</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
 
-          <div className="col-span-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              备注说明
-            </label>
-            <textarea
-              value={formData.remark}
-              onChange={(e) =>
-                setFormData({ ...formData, remark: e.target.value })
-              }
-              placeholder="请输入备注说明"
-              rows={3}
-              className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:text-white resize-none"
-            />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  交易日期
+                </label>
+                <input
+                  type="date"
+                  value={buyFormData.transactionDate}
+                  onChange={(e) => setBuyFormData({ ...buyFormData, transactionDate: e.target.value })}
+                  className="input-field"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  操作员
+                </label>
+                <input
+                  type="text"
+                  value={buyFormData.operator}
+                  disabled
+                  className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white cursor-not-allowed"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  资产描述
+                </label>
+                <textarea
+                  value={buyFormData.description}
+                  onChange={(e) => setBuyFormData({ ...buyFormData, description: e.target.value })}
+                  placeholder="请输入资产描述信息"
+                  rows={2}
+                  className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:text-white resize-none"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  备注说明
+                </label>
+                <textarea
+                  value={buyFormData.remark}
+                  onChange={(e) => setBuyFormData({ ...buyFormData, remark: e.target.value })}
+                  placeholder="请输入备注说明"
+                  rows={2}
+                  className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:text-white resize-none"
+                />
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                选择资产 <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <select
+                  value={transactionFormData.assetId}
+                  onChange={(e) => handleAssetSelect(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:text-white appearance-none cursor-pointer"
+                >
+                  <option value="">请选择资产</option>
+                  {selectableAssets.map((asset) => (
+                    <option key={asset.id} value={asset.id}>
+                      {asset.name} ({AssetTypeLabels[asset.type]}) - {formatCarbon(asset.amount)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {modalType === 'freeze' && selectableAssets.length === 0 && (
+                <p className="mt-1 text-xs text-amber-600">当前没有可冻结的可用资产</p>
+              )}
+              {modalType === 'unfreeze' && selectableAssets.length === 0 && (
+                <p className="mt-1 text-xs text-amber-600">当前没有可解冻的冻结资产</p>
+              )}
+            </div>
+
+            {selectedAsset && (
+              <div className="col-span-2 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">可用余额：</span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {formatCarbon(selectedAsset.amount)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">资产类型：</span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {AssetTypeLabels[selectedAsset.type]}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">资产状态：</span>
+                    <span className={cn('badge', getStatusColorClass(selectedAsset.status))}>
+                      {selectedAsset.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                交易数量 (tCO₂e) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                value={transactionFormData.amount}
+                onChange={(e) => {
+                  const amount = Number(e.target.value);
+                  setTransactionFormData({
+                    ...transactionFormData,
+                    amount,
+                  });
+                }}
+                placeholder="请输入数量"
+                min="0"
+                step="0.01"
+                max={selectedAsset?.amount || undefined}
+                className="input-field"
+              />
+              {selectedAsset && (
+                <p className="mt-1 text-xs text-gray-500">
+                  最大可操作数量：{formatCarbon(selectedAsset.amount)}
+                </p>
+              )}
+            </div>
+
+            {(modalType === 'sell') && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    单价 (元/吨)
+                  </label>
+                  <input
+                    type="number"
+                    value={transactionFormData.unitPrice}
+                    onChange={(e) => {
+                      const unitPrice = Number(e.target.value);
+                      setTransactionFormData({
+                        ...transactionFormData,
+                        unitPrice,
+                      });
+                    }}
+                    placeholder="请输入单价"
+                    min="0"
+                    step="0.01"
+                    className="input-field"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    总金额 (元)
+                  </label>
+                  <input
+                    type="text"
+                    value={getTotalAmount().toLocaleString('zh-CN', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                    disabled
+                    className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    交易对手
+                  </label>
+                  <input
+                    type="text"
+                    value={transactionFormData.counterparty}
+                    onChange={(e) =>
+                      setTransactionFormData({ ...transactionFormData, counterparty: e.target.value })
+                    }
+                    placeholder="请输入交易对手"
+                    className="input-field"
+                  />
+                </div>
+              </>
+            )}
+
+            <div className={(modalType === 'sell') ? '' : 'col-span-2'}>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                交易日期
+              </label>
+              <input
+                type="date"
+                value={transactionFormData.transactionDate}
+                onChange={(e) =>
+                  setTransactionFormData({ ...transactionFormData, transactionDate: e.target.value })
+                }
+                className="input-field"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                关联项目
+              </label>
+              <select
+                value={transactionFormData.projectId}
+                onChange={(e) =>
+                  setTransactionFormData({ ...transactionFormData, projectId: e.target.value })
+                }
+                className="input-field appearance-none cursor-pointer"
+              >
+                <option value="">无</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                操作员
+              </label>
+              <input
+                type="text"
+                value={transactionFormData.operator}
+                disabled
+                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white cursor-not-allowed"
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                备注说明
+              </label>
+              <textarea
+                value={transactionFormData.remark}
+                onChange={(e) =>
+                  setTransactionFormData({ ...transactionFormData, remark: e.target.value })
+                }
+                placeholder="请输入备注说明"
+                rows={3}
+                className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 dark:text-white resize-none"
+              />
+            </div>
+          </div>
+        )}
       </Modal>
+
+      <ConfirmDialog
+        open={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        onConfirm={confirmSubmitTransaction}
+        title="确认提交"
+        content={`确定要提交这笔${getModalTitle()}吗？提交后将同时更新交易记录和资产台账。`}
+        confirmText="确认提交"
+        danger={modalType === 'sell' || modalType === 'performance'}
+      />
     </div>
   );
 }

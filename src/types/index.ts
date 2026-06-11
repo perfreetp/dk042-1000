@@ -13,6 +13,7 @@ export interface CarbonAsset {
   year: number;
   department: string;
   projectId?: string;
+  unitPrice: number;
   cost: number;
   acquiredDate: string;
   expiryDate?: string;

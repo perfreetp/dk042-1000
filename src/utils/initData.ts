@@ -21,7 +21,23 @@ export const initializeData = (force = false): void => {
     return;
   }
 
-  setAssets(assetsData as CarbonAsset[]);
+  const processedAssets: CarbonAsset[] = (assetsData as Array<Record<string, unknown>>).map((asset) => {
+    let unitPrice = 0;
+    if (asset.unitPrice !== undefined) {
+      unitPrice = asset.unitPrice as number;
+    } else if (asset.cost !== undefined) {
+      unitPrice = asset.cost as number;
+    }
+    const amount = (asset.amount as number) || 0;
+    const cost = Math.round(amount * unitPrice * 100) / 100;
+    return {
+      ...asset,
+      unitPrice,
+      cost,
+    } as CarbonAsset;
+  });
+
+  setAssets(processedAssets);
   setTransactions(transactionsData as Transaction[]);
   setProjects(projectsData as ReductionProject[]);
   setDepartments(departmentsData as Department[]);
