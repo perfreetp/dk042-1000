@@ -1,0 +1,32 @@
+[
+  {
+    "id": "dept_001",
+    "name": "生产运营部",
+    "code": "PRD",
+    "manager": "张建国"
+  },
+  {
+    "id": "dept_002",
+    "name": "能源管理部",
+    "code": "ENG",
+    "manager": "李明华"
+  },
+  {
+    "id": "dept_003",
+    "name": "技术研发部",
+    "code": "RND",
+    "manager": "王晓峰"
+  },
+  {
+    "id": "dept_004",
+    "name": "财务管理部",
+    "code": "FIN",
+    "manager": "赵晓燕"
+  },
+  {
+    "id": "dept_005",
+    "name": "行政综合部",
+    "code": "ADM",
+    "manager": "陈美玲"
+  }
+]

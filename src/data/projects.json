@@ -1,0 +1,426 @@
+[
+  {
+    "id": "proj_001",
+    "name": "内蒙古风电场项目",
+    "code": "PRJ-NMG-WIND-2022",
+    "type": "风电项目",
+    "department": "dept_002",
+    "manager": "李明华",
+    "status": "completed",
+    "startDate": "2022-03-01",
+    "endDate": "2024-12-31",
+    "totalInvestment": 12500000,
+    "estimatedReduction": 15000,
+    "actualReduction": 15800,
+    "estimatedRevenue": 900000,
+    "actualRevenue": 1020000,
+    "progress": 100,
+    "milestones": [
+      {
+        "id": "ms_001_01",
+        "name": "项目备案及审批",
+        "targetDate": "2022-05-30",
+        "actualDate": "2022-05-15",
+        "status": "completed"
+      },
+      {
+        "id": "ms_001_02",
+        "name": "风机设备采购及安装",
+        "targetDate": "2023-06-30",
+        "actualDate": "2023-07-15",
+        "status": "delayed"
+      },
+      {
+        "id": "ms_001_03",
+        "name": "并网发电调试",
+        "targetDate": "2023-09-30",
+        "actualDate": "2023-09-20",
+        "status": "completed"
+      },
+      {
+        "id": "ms_001_04",
+        "name": "CCER方法学备案",
+        "targetDate": "2023-12-31",
+        "actualDate": "2023-12-10",
+        "status": "completed"
+      },
+      {
+        "id": "ms_001_05",
+        "name": "首笔CCER签发",
+        "targetDate": "2024-06-30",
+        "actualDate": "2024-06-20",
+        "status": "completed"
+      }
+    ],
+    "description": "内蒙古自治区50MW风电项目，安装20台2.5MW风力发电机组，年发电量约1.5亿kWh，年减排量约15000吨CO2e",
+    "createdAt": "2022-03-01T09:00:00Z",
+    "updatedAt": "2024-12-31T17:00:00Z"
+  },
+  {
+    "id": "proj_002",
+    "name": "河北光伏电站项目",
+    "code": "PRJ-HB-PV-2023",
+    "type": "光伏项目",
+    "department": "dept_003",
+    "manager": "王晓峰",
+    "status": "ongoing",
+    "startDate": "2023-01-15",
+    "endDate": "2026-06-30",
+    "totalInvestment": 8500000,
+    "estimatedReduction": 12000,
+    "actualReduction": 5300,
+    "estimatedRevenue": 720000,
+    "actualRevenue": 286200,
+    "progress": 65,
+    "milestones": [
+      {
+        "id": "ms_002_01",
+        "name": "项目备案及环评",
+        "targetDate": "2023-04-30",
+        "actualDate": "2023-04-20",
+        "status": "completed"
+      },
+      {
+        "id": "ms_002_02",
+        "name": "光伏组件采购及安装",
+        "targetDate": "2024-03-31",
+        "actualDate": "2024-04-10",
+        "status": "delayed"
+      },
+      {
+        "id": "ms_002_03",
+        "name": "并网发电",
+        "targetDate": "2024-06-30",
+        "actualDate": "2024-06-25",
+        "status": "completed"
+      },
+      {
+        "id": "ms_002_04",
+        "name": "CCER项目备案",
+        "targetDate": "2025-03-31",
+        "actualDate": "2025-03-20",
+        "status": "completed"
+      },
+      {
+        "id": "ms_002_05",
+        "name": "项目验收及审计",
+        "targetDate": "2026-06-30",
+        "status": "pending"
+      }
+    ],
+    "description": "河北省30MW分布式光伏电站项目，安装高效单晶硅组件，年发电量约4500万kWh，年减排量约4000吨CO2e",
+    "createdAt": "2023-01-15T10:00:00Z",
+    "updatedAt": "2026-05-20T14:30:00Z"
+  },
+  {
+    "id": "proj_003",
+    "name": "钢铁厂余热发电项目",
+    "code": "PRJ-STEEL-WHR-2023",
+    "type": "余热余压利用",
+    "department": "dept_002",
+    "manager": "李明华",
+    "status": "ongoing",
+    "startDate": "2023-06-01",
+    "endDate": "2026-12-31",
+    "totalInvestment": 15800000,
+    "estimatedReduction": 18000,
+    "actualReduction": 3300,
+    "estimatedRevenue": 1080000,
+    "actualRevenue": 176000,
+    "progress": 45,
+    "milestones": [
+      {
+        "id": "ms_003_01",
+        "name": "项目可行性研究",
+        "targetDate": "2023-08-31",
+        "actualDate": "2023-08-15",
+        "status": "completed"
+      },
+      {
+        "id": "ms_003_02",
+        "name": "工程设计及设备采购",
+        "targetDate": "2024-02-29",
+        "actualDate": "2024-03-10",
+        "status": "delayed"
+      },
+      {
+        "id": "ms_003_03",
+        "name": "余热锅炉安装",
+        "targetDate": "2024-09-30",
+        "actualDate": "2024-10-15",
+        "status": "completed"
+      },
+      {
+        "id": "ms_003_04",
+        "name": "发电机组调试运行",
+        "targetDate": "2025-03-31",
+        "actualDate": "2025-04-10",
+        "status": "completed"
+      },
+      {
+        "id": "ms_003_05",
+        "name": "CCER方法学申请及备案",
+        "targetDate": "2026-06-30",
+        "status": "pending"
+      }
+    ],
+    "description": "钢铁厂烧结机和高炉烟气余热回收发电项目，装机容量15MW，年发电量约1亿kWh，年回收余热蒸汽50万吨",
+    "createdAt": "2023-06-01T09:30:00Z",
+    "updatedAt": "2026-05-15T16:00:00Z"
+  },
+  {
+    "id": "proj_004",
+    "name": "生物质能发电项目",
+    "code": "PRJ-BIOMASS-2022",
+    "type": "生物质能",
+    "department": "dept_003",
+    "manager": "王晓峰",
+    "status": "completed",
+    "startDate": "2022-09-01",
+    "endDate": "2025-06-30",
+    "totalInvestment": 9200000,
+    "estimatedReduction": 10000,
+    "actualReduction": 10500,
+    "estimatedRevenue": 600000,
+    "actualRevenue": 642600,
+    "progress": 100,
+    "milestones": [
+      {
+        "id": "ms_004_01",
+        "name": "项目立项及审批",
+        "targetDate": "2022-11-30",
+        "actualDate": "2022-11-20",
+        "status": "completed"
+      },
+      {
+        "id": "ms_004_02",
+        "name": "设备采购及安装",
+        "targetDate": "2023-12-31",
+        "actualDate": "2023-12-25",
+        "status": "completed"
+      },
+      {
+        "id": "ms_004_03",
+        "name": "原料收储体系建设",
+        "targetDate": "2024-03-31",
+        "actualDate": "2024-03-15",
+        "status": "completed"
+      },
+      {
+        "id": "ms_004_04",
+        "name": "试运行及验收",
+        "targetDate": "2024-06-30",
+        "actualDate": "2024-06-20",
+        "status": "completed"
+      }
+    ],
+    "description": "农林生物质直燃发电项目，装机容量6MW，年消耗农林废弃物约6万吨，年发电量约4200万kWh",
+    "createdAt": "2022-09-01T10:00:00Z",
+    "updatedAt": "2025-06-30T17:30:00Z"
+  },
+  {
+    "id": "proj_005",
+    "name": "碳汇造林项目",
+    "code": "PRJ-FORESTRY-2023",
+    "type": "林业碳汇",
+    "department": "dept_005",
+    "manager": "陈美玲",
+    "status": "ongoing",
+    "startDate": "2023-03-01",
+    "endDate": "2043-02-28",
+    "totalInvestment": 3500000,
+    "estimatedReduction": 150000,
+    "actualReduction": 5000,
+    "estimatedRevenue": 9000000,
+    "actualRevenue": 140000,
+    "progress": 15,
+    "milestones": [
+      {
+        "id": "ms_005_01",
+        "name": "林地勘测及设计",
+        "targetDate": "2023-06-30",
+        "actualDate": "2023-06-15",
+        "status": "completed"
+      },
+      {
+        "id": "ms_005_02",
+        "name": "整地及苗木栽植",
+        "targetDate": "2024-05-31",
+        "actualDate": "2024-05-20",
+        "status": "completed"
+      },
+      {
+        "id": "ms_005_03",
+        "name": "幼林抚育（第1-3年）",
+        "targetDate": "2026-05-31",
+        "status": "pending"
+      },
+      {
+        "id": "ms_005_04",
+        "name": "碳汇计量监测（首次）",
+        "targetDate": "2028-12-31",
+        "status": "pending"
+      }
+    ],
+    "description": "云南省10000亩碳汇造林项目，种植云南松、杉木等乡土树种，计入期20年，预计总减排量15万吨CO2e",
+    "createdAt": "2023-03-01T09:00:00Z",
+    "updatedAt": "2026-04-10T11:30:00Z"
+  },
+  {
+    "id": "proj_006",
+    "name": "煤矿甲烷回收利用项目",
+    "code": "PRJ-COAL-CMM-2024",
+    "type": "甲烷回收利用",
+    "department": "dept_001",
+    "manager": "张建国",
+    "status": "planning",
+    "startDate": "2024-09-01",
+    "endDate": "2027-12-31",
+    "totalInvestment": 22000000,
+    "estimatedReduction": 25000,
+    "actualReduction": 0,
+    "estimatedRevenue": 1500000,
+    "actualRevenue": 0,
+    "progress": 25,
+    "milestones": [
+      {
+        "id": "ms_006_01",
+        "name": "项目可行性研究",
+        "targetDate": "2024-12-31",
+        "actualDate": "2024-12-15",
+        "status": "completed"
+      },
+      {
+        "id": "ms_006_02",
+        "name": "方案设计及审批",
+        "targetDate": "2025-06-30",
+        "status": "pending"
+      },
+      {
+        "id": "ms_006_03",
+        "name": "瓦斯抽采系统建设",
+        "targetDate": "2026-06-30",
+        "status": "pending"
+      },
+      {
+        "id": "ms_006_04",
+        "name": "发电设备安装调试",
+        "targetDate": "2027-06-30",
+        "status": "pending"
+      },
+      {
+        "id": "ms_006_05",
+        "name": "CCER备案及签发",
+        "targetDate": "2027-12-31",
+        "status": "pending"
+      }
+    ],
+    "description": "煤矿瓦斯（甲烷）抽采及利用项目，建设低浓度瓦斯发电站，装机容量10MW，年利用瓦斯约3000万m³",
+    "createdAt": "2024-09-01T14:00:00Z",
+    "updatedAt": "2026-03-01T10:00:00Z"
+  },
+  {
+    "id": "proj_007",
+    "name": "员工绿色出行碳普惠项目",
+    "code": "PRJ-CARBON-PUBLIC-2024",
+    "type": "碳普惠",
+    "department": "dept_005",
+    "manager": "陈美玲",
+    "status": "completed",
+    "startDate": "2024-04-01",
+    "endDate": "2025-12-31",
+    "totalInvestment": 200000,
+    "estimatedReduction": 1000,
+    "actualReduction": 800,
+    "estimatedRevenue": 30000,
+    "actualRevenue": 20000,
+    "progress": 100,
+    "milestones": [
+      {
+        "id": "ms_007_01",
+        "name": "平台开发及测试",
+        "targetDate": "2024-06-30",
+        "actualDate": "2024-06-20",
+        "status": "completed"
+      },
+      {
+        "id": "ms_007_02",
+        "name": "员工推广及培训",
+        "targetDate": "2024-08-31",
+        "actualDate": "2024-08-15",
+        "status": "completed"
+      },
+      {
+        "id": "ms_007_03",
+        "name": "运行及数据监测",
+        "targetDate": "2025-10-31",
+        "actualDate": "2025-10-31",
+        "status": "completed"
+      },
+      {
+        "id": "ms_007_04",
+        "name": "碳减排量核算及签发",
+        "targetDate": "2025-12-31",
+        "actualDate": "2025-12-20",
+        "status": "completed"
+      }
+    ],
+    "description": "员工绿色出行碳普惠项目，鼓励员工选择公共交通、骑行、拼车等绿色出行方式，通过APP记录出行数据并转换为碳减排量",
+    "createdAt": "2024-04-01T09:00:00Z",
+    "updatedAt": "2025-12-31T17:00:00Z"
+  },
+  {
+    "id": "proj_008",
+    "name": "建筑节能改造项目",
+    "code": "PRJ-BUILDING-EE-2023",
+    "type": "建筑节能",
+    "department": "dept_004",
+    "manager": "赵晓燕",
+    "status": "suspended",
+    "startDate": "2023-11-01",
+    "endDate": "2025-12-31",
+    "totalInvestment": 4500000,
+    "estimatedReduction": 3000,
+    "actualReduction": 0,
+    "estimatedRevenue": 180000,
+    "actualRevenue": 0,
+    "progress": 30,
+    "milestones": [
+      {
+        "id": "ms_008_01",
+        "name": "能源审计及方案设计",
+        "targetDate": "2024-02-29",
+        "actualDate": "2024-02-20",
+        "status": "completed"
+      },
+      {
+        "id": "ms_008_02",
+        "name": "改造工程招标",
+        "targetDate": "2024-05-31",
+        "actualDate": "2024-06-15",
+        "status": "delayed"
+      },
+      {
+        "id": "ms_008_03",
+        "name": "外墙及门窗改造",
+        "targetDate": "2024-10-31",
+        "status": "pending"
+      },
+      {
+        "id": "ms_008_04",
+        "name": "空调及照明系统升级",
+        "targetDate": "2025-06-30",
+        "status": "pending"
+      },
+      {
+        "id": "ms_008_05",
+        "name": "节能量审核及备案",
+        "targetDate": "2025-12-31",
+        "status": "pending"
+      }
+    ],
+    "description": "总部办公大楼节能改造项目，包括外墙保温、节能门窗、LED照明改造、中央空调系统升级等，预计年节电150万kWh",
+    "createdAt": "2023-11-01T10:00:00Z",
+    "updatedAt": "2024-07-01T09:00:00Z"
+  }
+]
